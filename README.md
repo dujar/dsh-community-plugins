@@ -11,7 +11,7 @@ The tab sits alongside the built-in *Plugin configuration* and *Plugin list* tab
 - **Local SQLite catalog** — plugin metadata is cached in `$DSH_HOME/dsh-community-plugins/catalog.db` (`node:sqlite`). Browsing, searching, sorting and tag aggregation all read this local file, so they are instant and offline.
 - **Background refresh** — the catalog seeds itself at `dsh web` startup (top repos by stars and by recent update) and refreshes again in the background as you search, so the cache grows with what you look for. A `Refresh` button forces an immediate update; the status row shows *Updating…* while a fetch is in flight.
 - **Search** by name, owner, description, or topic, with **sort by stars / recently updated / name**.
-- **Install** — one click runs the real `dsh plugin --profile <profile> add github:owner/name` on the host (pnpm under the hood) and reconciles `dsh.profile.bundles`.
+- **Install** — one click runs the real `dsh plugin --profile <profile> add github:owner/name` on the host (pnpm under the hood) and reconciles `dsh.profile.bundles`. A pre-flight check fetches the repo's `package.json` and rejects repos that do not declare a `dsh.bundle` manifest, so repos that merely carry the `dsh-plugin` topic (the harness itself, apps, demos) fail fast with a clear reason instead of a confusing pnpm error or a hang.
 - **Uninstall** — one click runs `dsh plugin --profile <profile> remove <package>`, resolving the actual package name from the profile manifest.
 - **Copy install command** — for terminal users, every list card offers a copy-to-clipboard button with the exact command.
 - **Internationalization** — English and Simplified Chinese, following the DSH language setting and switching live when it changes.
