@@ -1,0 +1,8 @@
+# dsh-community-plugins bundle patch
+#
+# Mounts the host half (the /community-plugins/* HTTP routes) into the web
+# profile. The browser half is discovered automatically through the
+# `dsh.client` declaration in package.json.
+- insert:
+    - id: community-plugins
+      name: 'dsh-community-plugins'

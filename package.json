@@ -1,0 +1,56 @@
+{
+  "name": "dsh-community-plugins",
+  "description": "Community plugins tab for the DeepSeek Harness web GUI: search, browse, install and uninstall plugins from the GitHub dsh-plugin topic",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "community",
+    "plugin",
+    "search",
+    "github",
+    "install"
+  ],
+  "license": "MIT",
+  "author": "bitslicer",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "scripts": {
+    "test": "node test/helpers.test.mjs && node test/catalog.test.mjs && node test/host-smoke.test.mjs && node test/client-smoke.test.mjs"
+  }
+}
