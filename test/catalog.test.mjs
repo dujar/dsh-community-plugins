@@ -12,7 +12,7 @@ const FAKE = [
 ]
 upsertRepos(db, FAKE)
 
-// upsert is idempotent on full_name
+// upsert is idempotent on the repo id
 upsertRepos(db, [{ ...FAKE[0], stargazers_count: 99, description: 'updated' }])
 let res = listCatalog(db, { q: '', tag: '', sort: 'stars', limit: 100, offset: 0 })
 assert.equal(res.total, 3)
@@ -61,6 +61,13 @@ const repo = rowToRepo(db.prepare('SELECT * FROM repos WHERE id = 1').get())
 assert.equal(repo.archived, false)
 assert.equal(repo.fork, false)
 assert.deepEqual(repo.topics, ['dsh-plugin', 'trading', 'dsh'])
+
+// Rename: same id, different full_name updates in place (no UNIQUE violation)
+upsertRepos(db, [{ ...FAKE[0], full_name: 'acme/trader-renamed' }])
+res = listCatalog(db, { q: '', tag: '', sort: 'stars', limit: 100, offset: 0 })
+assert.equal(res.total, 3)
+assert.ok(res.items.some((r) => r.full_name === 'acme/trader-renamed'))
+assert.ok(!res.items.some((r) => r.full_name === 'acme/trader'))
 
 db.close()
 console.log('catalog: all assertions passed')
