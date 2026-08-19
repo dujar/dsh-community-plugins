@@ -7,12 +7,14 @@ import { installClock, advance, flush, intervalCount, createRenderer } from './m
 // ---- fake browser ----
 const store = new Map()
 let captured = null
+const reloads = { count: 0 }
 globalThis.window = {
   __ModuleLoader__: { load: (definition) => { captured = definition } },
   localStorage: {
     getItem: (k) => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => { store.set(k, String(v)) },
   },
+  location: { reload: () => { reloads.count += 1 } },
 }
 installClock()
 const ui = createRenderer()
@@ -41,7 +43,7 @@ mod.apply(ctx)
 const Component = registered
 
 // ---- fake host API ----
-const calls = { catalog: [], refresh: [], state: 0, uninstall: [], setEnabled: [] }
+const calls = { catalog: [], refresh: [], state: 0, uninstall: [], setEnabled: [], restart: 0 }
 let refreshingFlag = false
 let installedPlugins = []
 const api = {
@@ -80,6 +82,7 @@ const api = {
   install: () => Promise.resolve({ ok: true }),
   uninstall: (body) => { calls.uninstall.push(body); return Promise.resolve({ ok: true }) },
   setEnabled: (name, enabled) => { calls.setEnabled.push([name, enabled]); installedPlugins = installedPlugins.map((p) => (p.name === name ? { ...p, enabled } : p)); return Promise.resolve({ ok: true, needsRestart: true }) },
+  restart: () => { calls.restart += 1; return Promise.resolve({ ok: true, restarting: true }) },
 }
 ui.setComponent(Component, { t: (key) => key, api })
 
@@ -261,5 +264,18 @@ assert.ok(localDisable, 'an enabled local plugin offers Disable')
 localDisable.props.onClick()
 await flush()
 assert.deepEqual(calls.setEnabled[calls.setEnabled.length - 1], ['my-local-plugin', false], 'local Disable targets the package name')
+
+// 17. The restart button: shown on success notices that need one, asks the
+// host to respawn dsh web, then polls until the new instance answers and
+// reloads the page.
+const restartBtn = ui.findAll((n) => n.type === 'button' && n.props.title === 'restart')[0]
+assert.ok(restartBtn, 'the notice offers Restart dsh web')
+assert.equal(calls.restart, 0)
+restartBtn.props.onClick()
+await flush()
+assert.equal(calls.restart, 1, 'Restart asks the host to respawn dsh web')
+assert.ok(findByText('restarting'), 'the banner switches to Restarting…')
+await advance(2100)
+assert.equal(reloads.count, 1, 'the page reloads once the new server answers')
 
 console.log('persistence: cached results survive remounts; only filter edits refetch')

@@ -16,7 +16,7 @@ The tab sits alongside the built-in *Plugin configuration* and *Plugin list* tab
 - **Fork browser** — each card shows the repo's **fork count**; click it to list the forks (stars, last push, description, archived state) in a dialog. Every fork has a **Compare with upstream** link (`github.com/<upstream>/compare/<branch>...<forkOwner>:<branch>`) so you can see what it carries that upstream has not merged, and an **Install** button that installs *that fork* instead of the original. When a fork would displace an already-installed plugin of the same name, the row says `replaces <owner/name>`. Listings are cached per repo (10 min, `DSH_COMMUNITY_FORKS_TTL_MS`); `Refresh` in the dialog forces a fresh fetch.
 - **Install** — one click runs the real `dsh plugin --profile <profile> add github:owner/name` on the host (pnpm under the hood) and reconciles `dsh.profile.bundles`. A pre-flight check fetches the repo's `package.json` and rejects repos that do not declare a `dsh.bundle` manifest, so repos that merely carry the `dsh-plugin` topic (the harness itself, apps, demos) fail fast with a clear reason instead of a confusing pnpm error or a hang.
 - **Already-installed plugins are marked** — the tab reads the active profile's `package.json`, so anything you installed earlier (here or with `dsh plugin add`) shows a green **Installed** badge and a **Remove** button instead of *Install*. A plugin that is installed but missing from `dsh.profile.bundles` — installed, not loaded — additionally shows a **Not enabled** badge. Matching is by resolved GitHub repo, falling back to package name, so a plugin installed from the npm registry under a name that differs from its repo is not detected.
-- **Enable / disable** — every installed plugin (community, local, or in the fork browser) gets an **Enable** or **Disable** button that adds or removes its name from `dsh.profile.bundles` in the profile manifest. The badge and button flip immediately; the harness itself loads or unloads the plugin after you **restart `dsh web`**. Only names that are actually installed can be toggled, so the manifest can't be polluted with unknown entries.
+- **Enable / disable** — every installed plugin (community, local, or in the fork browser) gets an **Enable** or **Disable** button that adds or removes its name from `dsh.profile.bundles` in the profile manifest. The badge and button flip immediately; the harness itself loads or unloads the plugin after you **restart `dsh web`**. Only names that are actually installed can be toggled, so the manifest can't be polluted with unknown entries. Every notice that needs one carries a **Restart dsh web** button: it respawns the server with the exact command line it was launched with, and the page reloads itself once the new instance answers.
 - **Uninstall** — one click runs `dsh plugin --profile <profile> remove <package>`, resolving the actual package name from the profile manifest.
 - **Copy install command** — for terminal users, every list card offers a copy-to-clipboard button with the exact command.
 - **Internationalization** — English and Simplified Chinese, following the DSH language setting and switching live when it changes.
@@ -68,6 +68,7 @@ dsh-community-plugins/
     forks.test.mjs     # fork listing cache, forced refetch, rate-limit fallback
     installed-state.test.mjs # profile manifest -> installed / enabled reporting
     toggle-route.test.mjs  # enable/disable edits dsh.profile.bundles, guarded
+    restart-route.test.mjs # restart responds, schedules restarter, exits; untrusted rejected
     mini-react.mjs     # React stub + fake clock shared by the client tests
     persistence.test.mjs # cached results / filter-driven refetch / clear filters
     forks-ui.test.mjs  # fork count -> fork browser -> install from a fork
@@ -86,6 +87,7 @@ dsh-community-plugins/
 | `/community-plugins/install` | POST | Body `{ repo: "owner/name" }`; runs `dsh plugin --profile <p> add github:owner/name`. |
 | `/community-plugins/uninstall` | POST | Body `{ repo: "owner/name" }`, or `{ name }` for a local plugin with no GitHub repo (the name must be actually installed). Runs `dsh plugin --profile <p> remove <name>`. |
 | `/community-plugins/plugin` | POST | Body `{ name, enabled }`; adds or removes the name from `dsh.profile.bundles` in the profile manifest. Guarded to installed plugin names. |
+| `/community-plugins/restart` | POST | Respawns this `dsh web` process (detached restarter re-execs the original command line after a 1.5s port-release wait), responds `{ ok, restarting }`, then exits. `DSH_COMMUNITY_RESTART_CMD` overrides the re-exec command for supervised setups. |
 
 All routes are guarded by the same fail-closed same-origin/localhost trust check as dsh-trader: a cross-origin or malformed `Origin`/`Referer` rejects, a CORS-simple content type rejects, and only then does a localhost host count as trusted.
 
@@ -102,6 +104,7 @@ Environment variables (all optional):
 | `DSH_COMMUNITY_MIN_FETCH_INTERVAL_MS` | `6000` | Minimum gap between GitHub fetches, to stay under the search rate limit. |
 | `DSH_COMMUNITY_FORKS_TTL_MS` | `600000` | How long cached fork listings and GitHub repo metadata are served before GitHub is asked again. The REST endpoints use GitHub's core limit (60/hr unauthenticated), separate from search. |
 | `DSH_COMMUNITY_GITHUB_TOKEN` | — | Optional bearer token (falls back to `GITHUB_TOKEN`) sent with GitHub API requests — lets the fork browser and local-plugin metadata reach **private repos** you have access to. |
+| `DSH_COMMUNITY_RESTART_CMD` | — | Overrides the restart command (e.g. `systemctl restart dsh-web`). Default: re-exec this process's own command line. |
 
 Profile auto-detection finds the profile whose `dsh.profile.bundles` includes this plugin, so a custom profile hosting the web GUI works without any configuration.
 
