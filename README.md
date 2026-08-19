@@ -9,9 +9,13 @@ The tab sits alongside the built-in *Plugin configuration* and *Plugin list* tab
 - **Two views** — **List** (rich cards) and **Grid** (compact cards), with a view switcher in the toolbar; the choice persists per browser.
 - **Categorized tags** — topic tags are grouped into labeled categories (DSH & DeepSeek, AI & Agents, Languages, Web & UI, Data & Storage, Tooling, Trading, Security, and Other) and shown in a compact, scrollable area with its own **filter box**; click a tag to drill into that category, click *All* (or the active-tag ×) to clear it. The umbrella `dsh-plugin` and `deepseek-harness` tags are omitted.
 - **Local SQLite catalog** — plugin metadata is cached in `$DSH_HOME/dsh-community-plugins/catalog.db` (`node:sqlite`). Browsing, searching, sorting and tag aggregation all read this local file, so they are instant and offline.
-- **Background refresh** — the catalog seeds itself at `dsh web` startup (top repos by stars and by recent update) and refreshes again in the background as you search, so the cache grows with what you look for. A `Refresh` button forces an immediate update; the status row shows *Updating…* while a fetch is in flight.
-- **Search** by name, owner, description, or topic, with **sort by stars / recently updated / name**.
+- **Stable results** — the result list never reloads on its own. It is re-read only when you change a filter (search text, sort, tag, status filter) or press `Refresh`, and the filters plus the last result set survive switching settings tabs and reloading the page. **Clear filters** in the status row resets search, sort, tags and the status filter in one click.
+- **Status filter** — **All / Installed / Local only** chips, each with a count. *Installed* narrows the community list to plugins that are in this profile (by resolved GitHub repo or package name); *Local only* lists the installed plugins that are **not** in the community catalog at all — private repos, local checkouts, registry packages outside the dsh-plugin topic — each with its **description, version and author read from the installed package's manifest** (`file:`/`link:` specs resolve relative to the profile directory, anything else through the profile's `node_modules`), its install spec, and an **Uninstall** button that removes by package name.
+- **Background refresh** — the catalog seeds itself at `dsh web` startup (top repos by stars and by recent update) and refreshes again in the background when you change the search term, so the cache grows with what you look for. A `Refresh` button forces an immediate update; the status row shows *Updating…* while a fetch is in flight, and the list picks up the new rows once that fetch lands.
+- **Search** by name, owner, description, or topic, with **sort by stars / forks / recently created / recently updated / name**. *Recently updated* uses GitHub's real `updated_at` (any repo change), not the push time the cards display.
+- **Fork browser** — each card shows the repo's **fork count**; click it to list the forks (stars, last push, description, archived state) in a dialog. Every fork has a **Compare with upstream** link (`github.com/<upstream>/compare/<branch>...<forkOwner>:<branch>`) so you can see what it carries that upstream has not merged, and an **Install** button that installs *that fork* instead of the original. When a fork would displace an already-installed plugin of the same name, the row says `replaces <owner/name>`. Listings are cached per repo (10 min, `DSH_COMMUNITY_FORKS_TTL_MS`); `Refresh` in the dialog forces a fresh fetch.
 - **Install** — one click runs the real `dsh plugin --profile <profile> add github:owner/name` on the host (pnpm under the hood) and reconciles `dsh.profile.bundles`. A pre-flight check fetches the repo's `package.json` and rejects repos that do not declare a `dsh.bundle` manifest, so repos that merely carry the `dsh-plugin` topic (the harness itself, apps, demos) fail fast with a clear reason instead of a confusing pnpm error or a hang.
+- **Already-installed plugins are marked** — the tab reads the active profile's `package.json`, so anything you installed earlier (here or with `dsh plugin add`) shows a green **Installed** badge and a **Remove** button instead of *Install*. A plugin that is installed but missing from `dsh.profile.bundles` — installed, not loaded — additionally shows a **Not enabled** badge; reinstalling from the tab puts it back in the bundle list. Matching is by resolved GitHub repo, falling back to package name, so a plugin installed from the npm registry under a name that differs from its repo is not detected.
 - **Uninstall** — one click runs `dsh plugin --profile <profile> remove <package>`, resolving the actual package name from the profile manifest.
 - **Copy install command** — for terminal users, every list card offers a copy-to-clipboard button with the exact command.
 - **Internationalization** — English and Simplified Chinese, following the DSH language setting and switching live when it changes.
@@ -35,8 +39,9 @@ Then **restart `dsh web`** and refresh the browser page. The install adds `dsh-c
 
 1. Open **Settings → Plugins → Community plugins**.
 2. Browse the top plugins (by stars), switch between **List / Grid**, and use the **category tags** to drill into a topic.
-3. Type to search — results come from the local cache instantly, and the host refreshes that query from GitHub in the background.
-4. Click **Install** on a plugin. When it finishes, **restart `dsh web`** and refresh the page (the note under the result explains this). Newly installed plugins appear in the built-in *Plugin list* tab after the restart.
+3. Type to search — results come from the local cache instantly, and the host refreshes that query from GitHub in the background. Results then stay put until you edit a filter again; **Clear filters** puts you back at the unfiltered list.
+4. Click a card's **fork count** to browse that repo's forks, compare one against upstream on GitHub, and install from it if it carries changes you want.
+5. Click **Install** on a plugin. When it finishes, **restart `dsh web`** and refresh the page (the note under the result explains this). Newly installed plugins appear in the built-in *Plugin list* tab after the restart.
 
 ## How the cache works
 
@@ -58,6 +63,12 @@ dsh-community-plugins/
     catalog.test.mjs   # SQLite upsert / query / tag aggregation
     host-smoke.test.mjs# route registration
     client-smoke.test.mjs # slot wiring
+    install-route.test.mjs # install pre-flight + responses
+    forks.test.mjs     # fork listing cache, forced refetch, rate-limit fallback
+    installed-state.test.mjs # profile manifest -> installed / enabled reporting
+    mini-react.mjs     # React stub + fake clock shared by the client tests
+    persistence.test.mjs # cached results / filter-driven refetch / clear filters
+    forks-ui.test.mjs  # fork count -> fork browser -> install from a fork
   LICENSE
   README.md
 ```
@@ -66,11 +77,12 @@ dsh-community-plugins/
 
 | Route | Method | Description |
 | --- | --- | --- |
-| `/community-plugins/catalog` | GET | Local catalog query. Params `q`, `tag`, `sort` (stars/updated/name), `limit`, `offset`. Returns `{ items, total, allCount, tags, refreshing, refreshedAt }`. |
+| `/community-plugins/catalog` | GET | Local catalog query. Params `q`, `tag`, `sort` (stars/forks/created/updated/name), `filter` (`all`/`installed`/`local`), `limit`, `offset`. `filter=local` returns the profile's installed plugins with no catalog row (flagged `local: true`). Returns `{ items, total, allCount, tags, counts, filter, refreshing, refreshedAt }`. |
 | `/community-plugins/refresh` | POST | Body `{ q }`; schedules a background GitHub fetch. |
-| `/community-plugins/state` | GET | Returns `{ profile, plugins: [{ name, spec, repo }] }` — the profile name and installed out-of-tree plugins. |
+| `/community-plugins/forks` | GET | Params `repo` (`owner/name`), `force` (`1` to bypass the cache). Returns `{ ok, items, fetchedAt, cached, stale?, rateLimited? }` — one page of forks (up to 50, by stars), cached in SQLite. |
+| `/community-plugins/state` | GET | Returns `{ profile, plugins: [{ name, spec, repo, enabled }] }` — the profile name and installed out-of-tree plugins. `enabled` is `true` when the package is listed in `dsh.profile.bundles` (i.e. actually mounted). |
 | `/community-plugins/install` | POST | Body `{ repo: "owner/name" }`; runs `dsh plugin --profile <p> add github:owner/name`. |
-| `/community-plugins/uninstall` | POST | Body `{ repo: "owner/name" }`; resolves the package name and runs `dsh plugin --profile <p> remove <name>`. |
+| `/community-plugins/uninstall` | POST | Body `{ repo: "owner/name" }`, or `{ name }` for a local plugin with no GitHub repo (the name must be actually installed). Runs `dsh plugin --profile <p> remove <name>`. |
 
 All routes are guarded by the same fail-closed same-origin/localhost trust check as dsh-trader: a cross-origin or malformed `Origin`/`Referer` rejects, a CORS-simple content type rejects, and only then does a localhost host count as trusted.
 
@@ -85,6 +97,7 @@ Environment variables (all optional):
 | `DSH_BIN` | `dsh` on PATH | Full path to the `dsh` executable used for install/uninstall. |
 | `DSH_COMMUNITY_INCLUDE_FORKS` | unset | Any non-empty value includes GitHub forks in the catalog (forks are excluded by default). |
 | `DSH_COMMUNITY_MIN_FETCH_INTERVAL_MS` | `6000` | Minimum gap between GitHub fetches, to stay under the search rate limit. |
+| `DSH_COMMUNITY_FORKS_TTL_MS` | `600000` | How long a cached fork listing is served before GitHub is asked again. The forks endpoint uses GitHub's core limit (60/hr unauthenticated), separate from search. |
 
 Profile auto-detection finds the profile whose `dsh.profile.bundles` includes this plugin, so a custom profile hosting the web GUI works without any configuration.
 

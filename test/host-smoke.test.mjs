@@ -26,6 +26,7 @@ assert.equal(mod.name, 'community-plugins')
 assert.ok(mod.inject.includes('webServer'), 'host inject includes webServer')
 assert.deepEqual(Object.keys(routes).sort(), [
   '/community-plugins/catalog',
+  '/community-plugins/forks',
   '/community-plugins/install',
   '/community-plugins/refresh',
   '/community-plugins/state',
