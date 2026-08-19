@@ -48,15 +48,19 @@ assert.equal(byName['dsh-registry-plugin'].enabled, true)
 assert.equal(byName['dsh-registry-plugin'].repo, null, 'a version spec resolves to no repo')
 
 // enrichLocal: the "about" info comes from the installed manifest.
-// 1. A registry-style install reads node_modules/<name>/package.json.
+// 1. A registry-style install reads node_modules/<name>/package.json and the
+// README shipped next to it.
 mkdirSync(join(home, 'profiles', 'web', 'node_modules', 'my-local-plugin'), { recursive: true })
 writeFileSync(join(home, 'profiles', 'web', 'node_modules', 'my-local-plugin', 'package.json'), JSON.stringify({
   name: 'my-local-plugin', version: '1.4.2', description: 'Does local things', author: { name: 'me' },
 }))
+writeFileSync(join(home, 'profiles', 'web', 'node_modules', 'my-local-plugin', 'README.md'), '# Local Plugin\n\n**Does local things.** `dsh plugin` compatible.\n')
 let enriched = await enrichLocal('web', { name: 'my-local-plugin', spec: '^1.0.0', repo: null })
 assert.equal(enriched.version, '1.4.2')
 assert.equal(enriched.description, 'Does local things')
 assert.equal(enriched.author, 'me')
+assert.ok(enriched.readme.includes('# Local Plugin'), 'README text is attached')
+assert.equal(enriched.readmeTruncated, false)
 
 // 2. A file: spec resolves relative to the profile directory.
 mkdirSync(join(home, 'profiles', 'web', 'plugins', 'other'), { recursive: true })
@@ -68,7 +72,13 @@ assert.equal(enriched.version, '0.3.0')
 assert.equal(enriched.description, 'A checkout plugin')
 assert.equal(enriched.author, 'someone')
 
-// 3. No readable manifest anywhere leaves the item untouched.
+// 3. A README beyond the display limit is truncated and flagged.
+writeFileSync(join(home, 'profiles', 'web', 'node_modules', 'my-local-plugin', 'README.md'), 'x'.repeat(20000))
+enriched = await enrichLocal('web', { name: 'my-local-plugin', spec: '^1.0.0', repo: null })
+assert.equal(enriched.readme.length, 12000)
+assert.equal(enriched.readmeTruncated, true)
+
+// 4. No readable manifest anywhere leaves the item untouched.
 enriched = await enrichLocal('web', { name: 'ghost', spec: 'link:../ghost', repo: null })
 assert.equal(enriched.version ?? null, null)
 assert.equal(enriched.description ?? null, null)

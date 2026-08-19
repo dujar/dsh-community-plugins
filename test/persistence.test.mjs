@@ -53,7 +53,7 @@ const api = {
     return Promise.resolve({
       ok: true, refreshing: refreshingFlag,
       items: local
-        ? [{ local: true, name: 'my-local-plugin', spec: 'file:../my-local-plugin', repo: null, enabled: true, version: '1.4.2', author: 'me', description: 'Does local things' }]
+        ? [{ local: true, name: 'my-local-plugin', spec: 'file:../my-local-plugin', repo: null, enabled: true, version: '1.4.2', author: 'me', description: 'Does local things', readme: '# Hello World\n\n**Bold** and `code`. [bad](javascript:alert(1)) <script>x</script>' }]
         : [{ full_name: 'owner/repo', owner: 'owner', stargazers: 3, forks: 0, topics: ['dsh'], description: 'x', pushed_at: '2026-01-01T00:00:00Z' }],
       total: 1, allCount: 1, tags: local ? [] : [{ tag: 'dsh', count: 1 }],
       counts: { all: 1, installed: installedPlugins.length ? 1 : 0, local: 1 },
@@ -168,6 +168,16 @@ assert.ok(findByText('Does local things'), 'the manifest description tells what 
 assert.ok(findByText('v1.4.2'), 'the version is shown')
 assert.ok(findByText('me'), 'the author is shown')
 assert.ok(findByText('localNote'), 'the local note explains the entry')
+
+// 11b. The README is showcased directly, rendered from markdown.
+assert.ok(findByText('Hello World'), 'the README heading renders')
+assert.ok(findByText('Bold'), 'bold renders as content')
+assert.ok(findByText('code'), 'inline code renders as content')
+assert.ok(!findByText('# Hello World'), 'raw heading syntax is not shown')
+assert.ok(!findByText('readmeTruncated'), 'no truncation note for a short README')
+// hostile content from a package README never becomes markup
+assert.ok(!ui.findAll((n) => n.type === 'script').length, 'script tags are not created')
+assert.ok(!ui.findAll((n) => n.type === 'a' && String(n.props.href).indexOf('javascript:') !== -1).length, 'javascript: links are not made clickable')
 const refBeforeLocal = calls.refresh.length
 findByText('uninstall').props.onClick()
 await flush()
