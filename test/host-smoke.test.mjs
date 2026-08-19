@@ -28,6 +28,7 @@ assert.deepEqual(Object.keys(routes).sort(), [
   '/community-plugins/catalog',
   '/community-plugins/forks',
   '/community-plugins/install',
+  '/community-plugins/plugin',
   '/community-plugins/refresh',
   '/community-plugins/state',
   '/community-plugins/uninstall',

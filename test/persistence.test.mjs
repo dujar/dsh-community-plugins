@@ -41,7 +41,7 @@ mod.apply(ctx)
 const Component = registered
 
 // ---- fake host API ----
-const calls = { catalog: [], refresh: [], state: 0, uninstall: [] }
+const calls = { catalog: [], refresh: [], state: 0, uninstall: [], setEnabled: [] }
 let refreshingFlag = false
 let installedPlugins = []
 const api = {
@@ -53,7 +53,24 @@ const api = {
     return Promise.resolve({
       ok: true, refreshing: refreshingFlag,
       items: local
-        ? [{ local: true, name: 'my-local-plugin', spec: 'file:../my-local-plugin', repo: null, enabled: true, version: '1.4.2', author: 'me', description: 'Does local things', readme: '# Hello World\n\n**Bold** and `code`. [bad](javascript:alert(1)) <script>x</script>' }]
+        ? [
+          {
+            local: true, name: 'my-local-plugin', spec: 'file:../my-local-plugin', repo: null, enabled: true,
+            version: '1.4.2', author: 'me', description: 'Does local things',
+            readmes: [
+              { key: 'README.md', label: 'English', text: '# Hello World\n\n**Bold** and `code`. [bad](javascript:alert(1)) <script>x</script>', truncated: false },
+              { key: 'README.zh-CN.md', label: '中文', text: '# 你好\n\n中文说明。', truncated: false },
+            ],
+          },
+          {
+            local: true, github: true, name: 'private-plugin', spec: 'github:acme/private-plugin', repo: 'acme/private-plugin', enabled: true,
+            full_name: 'acme/private-plugin', owner: 'acme', owner_avatar: null, html_url: 'https://github.com/acme/private-plugin',
+            description: 'Private trading plugin', stargazers: 12, forks: 2, language: 'TypeScript', archived: false, fork: false,
+            pushed_at: '2026-05-01T00:00:00Z', topics: ['trading'], default_branch: 'main',
+            version: '0.9.0', author: 'acme',
+            readmes: [{ key: 'README.md', label: 'English', text: '# Private Plugin\n\nRuns privately.', truncated: false }],
+          },
+        ]
         : [{ full_name: 'owner/repo', owner: 'owner', stargazers: 3, forks: 0, topics: ['dsh'], description: 'x', pushed_at: '2026-01-01T00:00:00Z' }],
       total: 1, allCount: 1, tags: local ? [] : [{ tag: 'dsh', count: 1 }],
       counts: { all: 1, installed: installedPlugins.length ? 1 : 0, local: 1 },
@@ -62,6 +79,7 @@ const api = {
   refresh: (q) => { calls.refresh.push(q); return Promise.resolve({ ok: true, refreshing: true }) },
   install: () => Promise.resolve({ ok: true }),
   uninstall: (body) => { calls.uninstall.push(body); return Promise.resolve({ ok: true }) },
+  setEnabled: (name, enabled) => { calls.setEnabled.push([name, enabled]); installedPlugins = installedPlugins.map((p) => (p.name === name ? { ...p, enabled } : p)); return Promise.resolve({ ok: true, needsRestart: true }) },
 }
 ui.setComponent(Component, { t: (key) => key, api })
 
@@ -178,6 +196,26 @@ assert.ok(!findByText('readmeTruncated'), 'no truncation note for a short README
 // hostile content from a package README never becomes markup
 assert.ok(!ui.findAll((n) => n.type === 'script').length, 'script tags are not created')
 assert.ok(!ui.findAll((n) => n.type === 'a' && String(n.props.href).indexOf('javascript:') !== -1).length, 'javascript: links are not made clickable')
+
+// 12. Multiple READMEs become language tabs; clicking switches the content.
+const zhTab = ui.findAll((n) => n.type === 'button' && n.props['aria-pressed'] && n.children.includes('中文'))[0]
+assert.ok(zhTab, 'each README variant gets a tab')
+assert.ok(findByText('Hello World'), 'the default README renders first')
+assert.ok(!findByText('你好'), 'the zh README is not shown yet')
+zhTab.props.onClick()
+await flush()
+assert.ok(findByText('你好'), 'clicking the 中文 tab switches the README')
+assert.ok(!findByText('Hello World'), 'the default README is swapped out')
+
+// 13. A local plugin whose repo is on GitHub renders the rich catalog card:
+// stars, fork count, topics, and a Remove action — not the dashed local card.
+assert.ok(findByText('Private trading plugin'), 'github-backed local uses the repo description')
+assert.ok(findByText('acme/private-plugin'), 'the full repo name is linked')
+assert.ok(findByText('12'), 'stars render on the rich card')
+assert.ok(findByText('trading'), 'topics render on the rich card')
+assert.ok(findByText('Private Plugin'), 'its README renders below the rich card')
+assert.equal(ui.findAll((n) => n.children.includes('localNote')).length, 1, 'the dashed card note appears only for the plain local plugin')
+assert.ok(findByText('uninstall'), 'the rich card offers Remove')
 const refBeforeLocal = calls.refresh.length
 findByText('uninstall').props.onClick()
 await flush()
@@ -190,5 +228,38 @@ ui.findAll((n) => n.type === 'button' && n.props && n.props.title === 'filterAll
 await advance(400)
 assert.match(calls.catalog[calls.catalog.length - 1], /filter=all/, 'back to All')
 assert.ok(!findByText('my-local-plugin'), 'local items do not leak into the catalog view')
+
+// 14. Enable/disable: an enabled installed plugin offers Disable; clicking it
+// edits the bundle list, and the badge flips to Not enabled on the spot.
+installedPlugins = [{ name: 'repo', spec: 'github:owner/repo', repo: 'owner/repo', enabled: true }]
+refreshButton().props.onClick()
+await advance(3000)
+
+const disableBtn = ui.findAll((n) => n.type === 'button' && n.props.title === 'disableHint')[0]
+assert.ok(disableBtn, 'an enabled installed plugin offers Disable')
+disableBtn.props.onClick()
+await flush()
+assert.deepEqual(calls.setEnabled[calls.setEnabled.length - 1], ['repo', false], 'Disable toggles the bundle membership off')
+assert.ok(findByText('notEnabled'), 'the badge flips to Not enabled immediately')
+
+// 15. And back: a disabled plugin offers Enable.
+const enableBtn = ui.findAll((n) => n.type === 'button' && n.props.title === 'enableHint')[0]
+assert.ok(enableBtn, 'a disabled plugin offers Enable')
+enableBtn.props.onClick()
+await flush()
+assert.deepEqual(calls.setEnabled[calls.setEnabled.length - 1], ['repo', true], 'Enable toggles the bundle membership on')
+assert.ok(!findByText('notEnabled'), 'the badge clears again')
+assert.ok(findByText('enabledOk'), 'the result is reported')
+
+// 16. The local card gets the same toggle.
+const localChipBtn = ui.findAll((n) => n.type === 'button' && (n.props.title === 'filterLocalHint' || n.props.title === 'filterLocal'))[0]
+assert.ok(localChipBtn, 'the Local chip is still rendered')
+localChipBtn.props.onClick()
+await advance(400)
+const localDisable = ui.findAll((n) => n.type === 'button' && n.props.title === 'disableHint')[0]
+assert.ok(localDisable, 'an enabled local plugin offers Disable')
+localDisable.props.onClick()
+await flush()
+assert.deepEqual(calls.setEnabled[calls.setEnabled.length - 1], ['my-local-plugin', false], 'local Disable targets the package name')
 
 console.log('persistence: cached results survive remounts; only filter edits refetch')
