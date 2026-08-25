@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dsh-community-plugins Demo</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb22;
+    --green: #3fb950;
+    --green-dim: #23863622;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --card-bg: #161b22;
+    --chip-bg: #21262d;
+    --chip-active: #1f6feb33;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+    height: 100vh;
+    width: 900px;
+  }
+
+  /* ── DSH shell chrome ─────────────────────────────────────── */
+  .shell { display: flex; flex-direction: column; height: 100%; }
+  .shell-topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--text-muted);
+  }
+  .shell-topbar .logo { font-weight: 700; color: var(--text); font-size: 14px; }
+  .shell-topbar .breadcrumb { color: var(--text-muted); }
+  .shell-topbar .breadcrumb span { color: var(--text); }
+
+  /* ── Settings page ────────────────────────────────────────── */
+  .settings-page { display: flex; flex: 1; overflow: hidden; }
+  .sidebar {
+    width: 160px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 12px 0;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .sidebar-item {
+    padding: 6px 14px; cursor: pointer; color: var(--text-muted);
+    border-left: 2px solid transparent; font-size: 12px;
+  }
+  .sidebar-item.active { color: var(--text); border-left-color: var(--accent); background: var(--accent-dim); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Tabs ─────────────────────────────────────────────────── */
+  .tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 16px;
+  }
+  .tab {
+    padding: 9px 14px; cursor: pointer; color: var(--text-muted);
+    border-bottom: 2px solid transparent; font-size: 12px; white-space: nowrap;
+    transition: color .15s, border-color .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* ── Tab content ──────────────────────────────────────────── */
+  .tab-content { flex: 1; overflow: hidden; display: none; flex-direction: column; }
+  .tab-content.visible { display: flex; }
+
+  /* ── Community plugins tab ────────────────────────────────── */
+  .cp-header {
+    padding: 14px 20px 0;
+    background: var(--bg);
+  }
+  .cp-intro { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+  .cp-intro strong { color: var(--text); }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 20px 10px; flex-wrap: wrap;
+  }
+  .search-box {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; flex: 1; min-width: 180px; max-width: 320px;
+  }
+  .search-box input {
+    background: none; border: none; outline: none; color: var(--text);
+    font-size: 12px; width: 100%;
+  }
+  .search-box input::placeholder { color: var(--text-muted); }
+  .search-icon { color: var(--text-muted); flex-shrink: 0; }
+  .sort-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 12px; padding: 5px 8px;
+    cursor: pointer; outline: none;
+  }
+  .view-switcher { display: flex; gap: 2px; background: var(--surface2); border-radius: 6px; padding: 2px; border: 1px solid var(--border); }
+  .view-btn {
+    padding: 4px 8px; cursor: pointer; border-radius: 4px; color: var(--text-muted);
+    display: flex; align-items: center; transition: all .15s;
+  }
+  .view-btn.active { background: var(--accent-dim); color: var(--accent); }
+  .refresh-btn {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; transition: all .15s;
+  }
+  .refresh-btn:hover { color: var(--text); border-color: var(--text-muted); }
+  .status-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 20px; font-size: 11px; color: var(--text-muted);
+    border-top: 1px solid var(--border); background: var(--surface);
+  }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 12px; font-size: 11px;
+    cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text-muted); transition: all .15s;
+  }
+  .filter-chip:hover { color: var(--text); }
+  .filter-chip.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+  .filter-chip .count { background: var(--border); border-radius: 8px; padding: 0 5px; font-size: 10px; }
+  .filter-chip.active .count { background: var(--accent); color: var(--bg); }
+  .clear-btn { color: var(--text-muted); cursor: pointer; text-decoration: underline; font-size: 11px; }
+  .clear-btn:hover { color: var(--text); }
+  .tag-strip {
+    display: flex; align-items: center; gap: 4px;
+    padding: 8px 20px; flex-wrap: wrap; border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .tag-category {
+    font-size: 10px; color: var(--text-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em; margin-right: 2px;
+  }
+  .tag-chip {
+    padding: 2px 8px; border-radius: 12px; font-size: 11px;
+    background: var(--chip-bg); color: var(--text-muted); cursor: pointer;
+    border: 1px solid transparent; transition: all .15s;
+  }
+  .tag-chip:hover { color: var(--text); border-color: var(--border); }
+  .tag-chip.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+  /* Results area */
+  .results-area { flex: 1; overflow-y: auto; padding: 12px 20px; }
+
+  /* List view cards */
+  .card-list { display: flex; flex-direction: column; gap: 8px; }
+  .card {
+    display: flex; gap: 12px;
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+    transition: border-color .15s, box-shadow .15s;
+    cursor: default;
+  }
+  .card:hover { border-color: var(--text-muted); box-shadow: 0 0 0 1px var(--border); }
+  .card-avatar {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+    background: var(--surface2); display: flex; align-items: center; justify-content: center;
+    font-size: 18px; overflow: hidden;
+  }
+  .card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-title { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .card-name { font-weight: 600; font-size: 13px; color: var(--accent); text-decoration: none; }
+  .card-name:hover { text-decoration: underline; }
+  .card-desc { font-size: 11px; color: var(--text-muted); margin-bottom: 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-stat { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-muted); }
+  .card-topics { display: flex; gap: 3px; flex-wrap: wrap; }
+  .topic-tag { font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--chip-bg); color: var(--text-muted); }
+  .card-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; flex-shrink: 0; }
+  .btn {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    transition: all .15s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--text-muted); }
+  .btn-primary { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn-primary:hover { background: #2ea043; border-color: #2ea043; }
+  .btn-danger { background: transparent; border-color: var(--red); color: var(--red); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+  .btn-sm { padding: 2px 8px; font-size: 10px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 6px; border-radius: 10px; font-size: 10px;
+    background: var(--green-dim); color: var(--green);
+  }
+  .badge-orange { background: #d2992222; color: var(--orange); }
+  .fork-link { font-size: 10px; color: var(--accent); cursor: pointer; }
+  .fork-link:hover { text-decoration: underline; }
+
+  /* Grid view */
+  .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .card-grid .card { flex-direction: column; }
+  .card-grid .card-body { min-height: 80px; }
+  .card-grid .card-actions { flex-direction: row; align-items: stretch; }
+  .card-grid .card-actions .btn { flex: 1; text-align: center; }
+
+  /* Fork dialog */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .dialog {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; width: 520px; max-height: 420px;
+    display: flex; flex-direction: column; overflow: hidden;
+    transform: translateY(10px); transition: transform .2s;
+  }
+  .overlay.open .dialog { transform: translateY(0); }
+  .dialog-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .dialog-title { font-size: 14px; font-weight: 600; }
+  .dialog-close { cursor: pointer; color: var(--text-muted); font-size: 18px; background: none; border: none; }
+  .dialog-close:hover { color: var(--text); }
+  .dialog-body { flex: 1; overflow-y: auto; padding: 8px; }
+  .fork-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    transition: background .1s;
+  }
+  .fork-row:hover { background: var(--surface2); }
+  .fork-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--chip-bg); flex-shrink: 0; }
+  .fork-info { flex: 1; min-width: 0; }
+  .fork-name { font-size: 12px; font-weight: 600; color: var(--accent); }
+  .fork-desc { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fork-stats { display: flex; gap: 8px; font-size: 10px; color: var(--text-muted); }
+  .compare-link { font-size: 10px; color: var(--purple); text-decoration: none; }
+  .compare-link:hover { text-decoration: underline; }
+
+  /* Notice banner */
+  .notice {
+    margin: 8px 20px; padding: 8px 12px; border-radius: 6px;
+    font-size: 12px; display: none; align-items: center; gap: 8px;
+  }
+  .notice.success { background: var(--green-dim); color: var(--green); border: 1px solid #23863644; display: flex; }
+  .notice.info { background: var(--accent-dim); color: var(--accent); border: 1px solid #1f6feb44; display: flex; }
+
+  /* Status indicator */
+  .status-indicator { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+  .spinner { width: 10px; height: 10px; border: 1.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Cursor */
+  .cursor {
+    position: fixed; width: 16px; height: 16px; pointer-events: none; z-index: 999;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+    transition: left .35s cubic-bezier(.25,.1,.25,.1), top .35s cubic-bezier(.25,.1,.25,.1);
+  }
+  .cursor svg { width: 16px; height: 16px; }
+  .cursor.clicking svg { transform: scale(.85); }
+
+  /* Typing indicator */
+  .typing-cursor::after { content: '|'; animation: blink .6s step-start infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Highlight glow for interactions */
+  .glow { box-shadow: 0 0 0 2px var(--accent) !important; }
+
+  /* End screen */
+  .end-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 200; opacity: 0; pointer-events: none; transition: opacity .5s;
+  }
+  .end-screen.visible { opacity: 1; pointer-events: all; }
+  .end-logo { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .end-logo span { color: var(--accent); }
+  .end-sub { color: var(--text-muted); font-size: 14px; margin-bottom: 16px; }
+  .end-tags { display: flex; gap: 8px; }
+  .end-tag { padding: 4px 12px; border-radius: 16px; background: var(--surface2); border: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor">
+  <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M1 1L5.5 14L8 7.5L14.5 5L1 1Z" fill="white" stroke="black" stroke-width="1.2" stroke-linejoin="round"/>
+  </svg>
+</div>
+
+<!-- End screen -->
+<div class="end-screen" id="endScreen">
+  <div class="end-logo">dsh-<span>community-plugins</span></div>
+  <div class="end-sub">Search · Browse · Install · Manage</div>
+  <div class="end-tags">
+    <div class="end-tag">⚡ Local SQLite catalog</div>
+    <div class="end-tag">🔍 GitHub topic search</div>
+    <div class="end-tag">🍴 Fork browser</div>
+    <div class="end-tag">🌐 i18n EN/ZH</div>
+  </div>
+</div>
+
+<!-- Fork dialog overlay -->
+<div class="overlay" id="forkOverlay">
+  <div class="dialog">
+    <div class="dialog-header">
+      <div class="dialog-title">🍴 Forks of bitslicer/dsh-trader</div>
+      <button class="dialog-close" id="forkClose">✕</button>
+    </div>
+    <div class="dialog-body" id="forkBody"></div>
+  </div>
+</div>
+
+<div class="shell">
+  <div class="shell-topbar">
+    <div class="logo">DSH</div>
+    <div class="breadcrumb">Settings / Plugins / <span>Community plugins</span></div>
+  </div>
+
+  <div class="settings-page">
+    <div class="sidebar">
+      <div class="sidebar-item">General</div>
+      <div class="sidebar-item">Agents</div>
+      <div class="sidebar-item active">Plugins</div>
+      <div class="sidebar-item">Model</div>
+      <div class="sidebar-item">Terminal</div>
+      <div class="sidebar-item">Theme</div>
+    </div>
+
+    <div class="main">
+      <div class="tabs">
+        <div class="tab" data-tab="config">Plugin configuration</div>
+        <div class="tab" data-tab="list">Plugin list</div>
+        <div class="tab active" data-tab="community">Community plugins</div>
+      </div>
+
+      <div class="tab-content visible" id="tab-community">
+        <div class="cp-header">
+          <div class="cp-intro">Search and install plugins published under the <strong>dsh-plugin</strong> topic on GitHub.</div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <span class="search-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            </span>
+            <input type="text" id="searchInput" placeholder="Search plugins…" autocomplete="off">
+          </div>
+          <select class="sort-select" id="sortSelect">
+            <option value="stars">⭐ Stars</option>
+            <option value="forks">🍴 Forks</option>
+            <option value="updated">🕐 Recently updated</option>
+            <option value="name">🔤 Name</option>
+          </select>
+          <div class="view-switcher">
+            <div class="view-btn active" id="viewList" title="List view">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </div>
+            <div class="view-btn" id="viewGrid" title="Grid view">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+          </div>
+          <button class="refresh-btn" id="refreshBtn">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <div class="status-row">
+          <span class="status-indicator" id="statusIndicator">Updated just now</span>
+          <div style="flex:1"></div>
+          <div class="filter-chip active" data-filter="all">All <span class="count" id="countAll">24</span></div>
+          <div class="filter-chip" data-filter="installed">Installed <span class="count">3</span></div>
+          <div class="filter-chip" data-filter="local">Local only <span class="count">1</span></div>
+          <span class="clear-btn" id="clearFilters" style="display:none">Clear filters</span>
+        </div>
+
+        <div class="tag-strip" id="tagStrip"></div>
+
+        <div class="notice success" id="installNotice">✅ Installed. Restart dsh web to activate it.</div>
+        <div class="notice success" id="uninstallNotice">✅ Removed. Restart dsh web to apply.</div>
+
+        <div class="results-area" id="resultsArea"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Mock data ──────────────────────────────────────────────────────
+const plugins = [
+  { repo:'bitslicer/dsh-trader',    desc:'Algorithmic trading agent with live market data and order execution',              stars:1240, forks:186,  updated:'2026-08-18', topics:['trading','agent','market'], author:'bitslicer', installed:true,  enabled:true  },
+  { repo:'deepseek-ai/dsh-docs',   desc:'Official documentation and examples for DeepSeek Harness plugins',                   stars:890,  forks:72,   updated:'2026-08-15', topics:['docs','deepseek'],             author:'deepseek-ai', installed:false, enabled:false },
+  { repo:'devmichael/dsh-terminal',desc:'Enhanced terminal with syntax highlighting and command history',                     stars:620,  forks:45,   updated:'2026-08-10', topics:['terminal','ui'],               author:'devmichael',  installed:false, enabled:false },
+  { repo:'sarahchen/dsh-weather',  desc:'Weather forecast plugin with animated maps and alerts',                            stars:410,  forks:28,   updated:'2026-07-28', topics:['utility','weather'],           author:'sarahchen',   installed:false, enabled:false },
+  { repo:'anthony/dsh-react-ui',   desc:'React component library for building DSH plugin interfaces',                       stars:380,  forks:55,   updated:'2026-08-01', topics:['react','ui','library'],        author:'anthony',     installed:false, enabled:false },
+  { repo:'mikepark/dsh-pandas',    desc:'Pandas integration for data analysis workflows inside DSH',                        stars:310,  forks:22,   updated:'2026-07-20', topics:['data','pandas','python'],      author:'mikepark',    installed:false, enabled:false },
+  { repo:'lena/knowledge-base',    desc:'Personal knowledge base with markdown support and graph view',                     stars:275,  forks:18,   updated:'2026-08-12', topics:['knowledge','markdown'],        author:'lena',        installed:false, enabled:false },
+  { repo:'jason/dsh-calendar',     desc:'Calendar and scheduling plugin with iCal import and reminders',                  stars:220,  forks:14,   updated:'2026-06-30', topics:['calendar','productivity'],     author:'jason',       installed:false, enabled:false },
+  { repo:'priya/dsh-notes',        desc:'Quick notes and clipboard manager for the DSH desktop app',                      stars:195,  forks:11,   updated:'2026-08-05', topics:['notes','clipboard'],           author:'priya',       installed:false, enabled:false },
+  { repo:'alex/dsh-linting',       desc:'Real-time code linting with ESLint, Prettier, and custom rule packs',            stars:170,  forks:9,    updated:'2026-07-15', topics:['linting','code','quality'],    author:'alex',        installed:false, enabled:false },
+  { repo:'emma/dsh-database',      desc:'Database explorer with support for SQLite, PostgreSQL, and Redis',               stars:155,  forks:12,   updated:'2026-08-08', topics:['database','sql','redis'],      author:'emma',        installed:false, enabled:false },
+  { repo:'tom/dsh-gitflow',        desc:'Visual Git workflow tool with branch management and merge conflict helpers',     stars:130,  forks:8,    updated:'2026-07-01', topics:['git','workflow'],              author:'tom',         installed:false, enabled:false },
+  { repo:'nina/dsh-api-client',    desc:'API client with request history, environment variables, and collection sync',    stars:110,  forks:6,    updated:'2026-06-20', topics:['api','http','testing'],        author:'nina',        installed:false, enabled:false },
+  { repo:'chris/dsh-colors',       desc:'Color palette generator and contrast checker for UI themes',                     stars:95,   forks:5,    updated:'2026-05-15', topics:['design','colors','ui'],        author:'chris',       installed:false, enabled:false },
+  { repo:'sophie/dsh-i18n',        desc:'Internationalization toolkit with plural rules and RTL support',                 stars:80,   forks:4,    updated:'2026-08-14', topics:['i18n','localization'],         author:'sophie',      installed:false, enabled:false },
+];
+
+const installedRepos = new Set(['bitslicer/dsh-trader', 'deepseek-ai/dsh-docs', 'devmichael/dsh-terminal']);
+
+// ── Tag data ───────────────────────────────────────────────────────
+const tagCategories = [
+  { label: 'DSH & DeepSeek', tags: ['dsh-plugin', 'deepseek-harness'] },
+  { label: 'AI & Agents',     tags: ['agent', 'ai', 'llm', 'prompt'] },
+  { label: 'Languages',       tags: ['python', 'typescript', 'javascript', 'rust'] },
+  { label: 'Web & UI',        tags: ['react', 'ui', 'terminal', 'theme'] },
+  { label: 'Data & Storage',  tags: ['database', 'pandas', 'sql', 'redis'] },
+  { label: 'Tooling',         tags: ['git', 'linting', 'api', 'i18n'] },
+  { label: 'Trading',         tags: ['trading', 'market', 'finance'] },
+  { label: 'Productivity',    tags: ['calendar', 'notes', 'clipboard', 'knowledge'] },
+];
+
+// ── State ──────────────────────────────────────────────────────────
+let currentView = 'list';
+let currentFilter = 'all';
+let currentSort = 'stars';
+let currentTag = null;
+let currentQuery = '';
+let isRefreshing = false;
+let currentCursorTarget = null;
+
+// ── Helpers ────────────────────────────────────────────────────────
+function formatStars(n) { return n >= 1000 ? (n/1000).toFixed(1) + 'k' : String(n); }
+function formatDate(d) {
+  const diff = Math.floor((Date.now() - new Date(d)) / 86400000);
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'yesterday';
+  if (diff < 30) return diff + 'd ago';
+  if (diff < 365) return Math.floor(diff/30) + 'mo ago';
+  return Math.floor(diff/365) + 'y ago';
+}
+function getInitials(name) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+function avatarFor(repo) {
+  const parts = repo.split('/');
+  return getInitials(parts[0]);
+}
+
+// ── Render ─────────────────────────────────────────────────────────
+function renderTags() {
+  const strip = document.getElementById('tagStrip');
+  strip.innerHTML = '';
+  tagCategories.forEach(cat => {
+    const el = document.createElement('span');
+    el.className = 'tag-category';
+    el.textContent = cat.label;
+    strip.appendChild(el);
+    cat.tags.forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip' + (currentTag === tag ? ' active' : '');
+      chip.textContent = tag;
+      chip.dataset.tag = tag;
+      chip.addEventListener('click', () => onTagClick(tag));
+      strip.appendChild(chip);
+    });
+    const sep = document.createElement('span');
+    sep.style.cssText = 'color:var(--border);margin:0 2px;font-size:10px;';
+    sep.textContent = '·';
+    strip.appendChild(sep);
+  });
+}
+
+function renderCards() {
+  const area = document.getElementById('resultsArea');
+  let filtered = [...plugins];
+
+  // Query
+  if (currentQuery) {
+    const q = currentQuery.toLowerCase();
+    filtered = filtered.filter(p =>
+      p.repo.toLowerCase().includes(q) ||
+      p.desc.toLowerCase().includes(q) ||
+      p.topics.some(t => t.includes(q))
+    );
+  }
+
+  // Tag filter
+  if (currentTag) {
+    filtered = filtered.filter(p => p.topics.includes(currentTag));
+  }
+
+  // Sort
+  filtered.sort((a,b) => {
+    if (currentSort === 'stars') return b.stars - a.stars;
+    if (currentSort === 'forks') return b.forks - a.forks;
+    if (currentSort === 'updated') return new Date(b.updated) - new Date(a.updated);
+    if (currentSort === 'name') return a.repo.localeCompare(b.repo);
+    return 0;
+  });
+
+  // Count all
+  document.getElementById('countAll').textContent = filtered.length;
+
+  // Clear filters visibility
+  document.getElementById('clearFilters').style.display = (currentQuery || currentTag) ? '' : 'none';
+
+  if (currentView === 'grid') {
+    area.innerHTML = `<div class="card-grid">${filtered.map(p => cardHTML(p)).join('')}</div>`;
+  } else {
+    area.innerHTML = `<div class="card-list">${filtered.map(p => cardHTML(p)).join('')}</div>`;
+  }
+
+  attachCardListeners();
+}
+
+function cardHTML(p) {
+  const isInst = installedRepos.has(p.repo);
+  const isEn = p.installed && p.enabled;
+  const badges = [];
+  if (isInst && isEn) badges.push('<span class="badge">✓ Installed</span>');
+  else if (isInst) badges.push('<span class="badge badge-orange">Not enabled</span>');
+  const badgesHTML = badges.join('');
+
+  const topicsHTML = p.topics.slice(0,3).map(t => `<span class="topic-tag">${t}</span>`).join('');
+
+  let actionsHTML = '';
+  if (isInst) {
+    actionsHTML = `
+      <button class="btn btn-sm ${isEn ? 'btn-danger' : 'btn-primary'}" data-action="${isEn ? 'remove' : 'enable'}" data-repo="${p.repo}">${isEn ? 'Remove' : 'Enable'}</button>
+      <button class="btn btn-sm" data-action="copy" data-repo="${p.repo}">Copy command</button>
+    `;
+  } else {
+    actionsHTML = `<button class="btn btn-sm btn-primary" data-action="install" data-repo="${p.repo}">Install</button>`;
+  }
+  const forkCount = p.forks + Math.floor(Math.random()*5);
+  actionsHTML += `<span class="fork-link" data-fork="${p.repo}">🍴 ${forkCount} forks</span>`;
+
+  return `
+    <div class="card" data-repo="${p.repo}">
+      <div class="card-avatar">${avatarFor(p.repo)}</div>
+      <div class="card-body">
+        <div class="card-title">
+          <a class="card-name" href="#">${p.repo}</a>
+          ${badgesHTML}
+        </div>
+        <div class="card-desc">${p.desc}</div>
+        <div class="card-meta">
+          <span class="card-stat">⭐ ${formatStars(p.stars)}</span>
+          <span class="card-stat">🍴 ${formatStars(forkCount)}</span>
+          <span class="card-stat">🕐 ${formatDate(p.updated)}</span>
+          <div class="card-topics">${topicsHTML}</div>
+        </div>
+      </div>
+      <div class="card-actions">${actionsHTML}</div>
+    </div>
+  `;
+}
+
+function attachCardListeners() {
+  document.querySelectorAll('[data-action="install"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); installPlugin(btn.dataset.repo); });
+  });
+  document.querySelectorAll('[data-action="remove"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); uninstallPlugin(btn.dataset.repo); });
+  });
+  document.querySelectorAll('[data-action="enable"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); togglePlugin(btn.dataset.repo); });
+  });
+  document.querySelectorAll('[data-fork]').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); openForks(e.target.dataset.fork); });
+  });
+}
+
+function installPlugin(repo) {
+  const btn = document.querySelector(`[data-repo="${repo}"][data-action="install"]`);
+  if (!btn) return;
+  btn.textContent = 'Installing…';
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  setTimeout(() => {
+    installedRepos.add(repo);
+    hideNotices();
+    const notice = document.getElementById('installNotice');
+    notice.style.display = 'flex';
+    setTimeout(() => { notice.style.display = 'none'; renderCards(); }, 1500);
+  }, 800);
+}
+
+function uninstallPlugin(repo) {
+  installedRepos.delete(repo);
+  hideNotices();
+  const notice = document.getElementById('uninstallNotice');
+  notice.style.display = 'flex';
+  setTimeout(() => { notice.style.display = 'none'; renderCards(); }, 1500);
+}
+
+function togglePlugin(repo) {
+  renderCards();
+}
+
+function hideNotices() {
+  document.querySelectorAll('.notice').forEach(n => n.style.display = 'none');
+}
+
+function openForks(repo) {
+  const overlay = document.getElementById('forkOverlay');
+  const body = document.getElementById('forkBody');
+  const forkList = [
+    { repo: 'alice/'+repo.split('/')[1], stars: Math.floor(Math.random()*200), desc: 'Patched version with extra features', push: '3d ago' },
+    { repo: 'bob/'+repo.split('/')[1], stars: Math.floor(Math.random()*100), desc: 'Experimental branch for testing', push: '1w ago' },
+    { repo: 'carol/'+repo.split('/')[1], stars: Math.floor(Math.random()*50), desc: 'Fork with bugfixes', push: '2w ago' },
+  ];
+  body.innerHTML = forkList.map(f => `
+    <div class="fork-row">
+      <div class="fork-avatar">${getInitials(f.repo.split('/')[0])}</div>
+      <div class="fork-info">
+        <div class="fork-name">${f.repo}</div>
+        <div class="fork-desc">${f.desc}</div>
+        <div class="fork-stats">
+          <span>⭐ ${f.stars}</span>
+          <span>🕐 ${f.push}</span>
+          <a class="compare-link" href="#">Compare with upstream</a>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-primary">Install</button>
+    </div>
+  `).join('');
+  overlay.classList.add('open');
+  document.getElementById('forkClose').onclick = () => overlay.classList.remove('open');
+  overlay.onclick = e => { if (e.target === overlay) overlay.classList.remove('open'); };
+}
+
+// ── Event wiring ───────────────────────────────────────────────────
+document.getElementById('viewList').addEventListener('click', () => setView('list'));
+document.getElementById('viewGrid').addEventListener('click', () => setView('grid'));
+document.getElementById('refreshBtn').addEventListener('click', doRefresh);
+document.getElementById('clearFilters').addEventListener('click', clearFilters);
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => setFilter(chip.dataset.filter));
+});
+document.getElementById('sortSelect').addEventListener('change', e => { currentSort = e.target.value; renderCards(); });
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('viewList').classList.toggle('active', v === 'list');
+  document.getElementById('viewGrid').classList.toggle('active', v === 'grid');
+  renderCards();
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  renderCards();
+}
+
+function clearFilters() {
+  currentQuery = '';
+  currentTag = null;
+  document.getElementById('searchInput').value = '';
+  renderTags();
+  renderCards();
+}
+
+function onTagClick(tag) {
+  currentTag = currentTag === tag ? null : tag;
+  renderTags();
+  renderCards();
+}
+
+function doRefresh() {
+  isRefreshing = true;
+  const btn = document.getElementById('refreshBtn');
+  const indicator = document.getElementById('statusIndicator');
+  btn.disabled = true;
+  indicator.innerHTML = '<div class="spinner"></div> Updating…';
+  setTimeout(() => {
+    isRefreshing = false;
+    btn.disabled = false;
+    indicator.textContent = 'Updated just now';
+  }, 1200);
+}
+
+// ── Cursor animation ───────────────────────────────────────────────
+const cursor = document.getElementById('cursor');
+let cx = 450, cy = 300;
+
+function setCursor(x, y, duration = 400) {
+  return new Promise(resolve => {
+    const sx = cx, sy = cy;
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      cursor.style.left = (sx + (x-sx)*ease) + 'px';
+      cursor.style.top  = (sy + (y-sy)*ease) + 'px';
+      cx = x; cy = y;
+      if (t < 1) requestAnimationFrame(tick);
+      else resolve();
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+function click() {
+  cursor.classList.add('clicking');
+  setTimeout(() => cursor.classList.remove('clicking'), 150);
+}
+
+// ── Timeline (async orchestration) ────────────────────────────────
+async function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function runDemo() {
+  await wait(300);
+
+  // ── Scene 1: Start in list view, show refresh ──
+  await setCursor(720, 155, 600);
+  await wait(400);
+  click();
+  await wait(800);
+
+  // Show some cards rendered
+  await wait(500);
+
+  // ── Scene 2: Switch to grid view ──
+  await setCursor(770, 122, 500);
+  await wait(300);
+  click();
+  await wait(600);
+
+  // ── Scene 3: Type in search ──
+  await setCursor(250, 122, 500);
+  await wait(300);
+  click();
+  await wait(200);
+
+  // Type "trader"
+  const searchInput = document.getElementById('searchInput');
+  searchInput.value = '';
+  searchInput.focus();
+  for (const ch of 'trader') {
+    searchInput.value += ch;
+    searchInput.dispatchEvent(new Event('input'));
+    await wait(100);
+  }
+  await wait(600);
+  renderCards();
+  await wait(500);
+
+  // Clear search
+  searchInput.value = '';
+  searchInput.dispatchEvent(new Event('input'));
+  renderCards();
+  await wait(300);
+
+  // ── Scene 4: Sort change ──
+  await setCursor(420, 122, 500);
+  await wait(200);
+  click();
+  await wait(200);
+  await setCursor(420, 170, 300);
+  await wait(100);
+  click();
+  await wait(500);
+
+  await setCursor(420, 122, 300);
+  click();
+  await wait(100);
+  await setCursor(420, 148, 300);
+  await wait(100);
+  click();
+  await wait(500);
+
+  // Reset sort
+  document.getElementById('sortSelect').value = 'stars';
+  currentSort = 'stars';
+  renderCards();
+
+  // ── Scene 5: Tag filtering ──
+  await setCursor(200, 186, 600);
+  await wait(300);
+  click();
+  await wait(600);
+
+  await setCursor(260, 186, 500);
+  await wait(200);
+  click();
+  await wait(500);
+
+  // Clear tag
+  await setCursor(155, 155, 500);
+  await wait(200);
+  click();
+  await wait(400);
+
+  // ── Scene 6: Fork browser ──
+  await setCursor(800, 260, 500);
+  await wait(300);
+  click();
+  await wait(400);
+
+  // Wait for dialog
+  await wait(600);
+
+  // Close dialog
+  await setCursor(960, 60, 400);
+  await wait(200);
+  click();
+  await wait(600);
+
+  // ── Scene 7: Install ──
+  await setCursor(800, 310, 500);
+  await wait(300);
+  click();
+  await wait(900);
+
+  await wait(400);
+
+  // ── Scene 8: Uninstall ──
+  await setCursor(800, 370, 500);
+  await wait(300);
+  click();
+  await wait(900);
+  await wait(300);
+
+  // ── Scene 9: Filter chips ──
+  await setCursor(520, 206, 500);
+  await wait(200);
+  click();
+  await wait(500);
+
+  await setCursor(620, 206, 500);
+  await wait(200);
+  click();
+  await wait(500);
+
+  await setCursor(520, 206, 500);
+  await wait(200);
+  click();
+  await wait(400);
+
+  // ── Scene 10: Back to grid, final ──
+  await setCursor(770, 122, 500);
+  await wait(200);
+  click();
+  await wait(400);
+
+  // End screen
+  await wait(600);
+  document.getElementById('endScreen').classList.add('visible');
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+renderTags();
+renderCards();
+setCursor(450, 300);
+setTimeout(runDemo, 500);
+</script>
+</body>
+</html>

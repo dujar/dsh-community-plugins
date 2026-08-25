@@ -25,6 +25,7 @@ mod.apply(ctx)
 assert.equal(mod.name, 'community-plugins')
 assert.ok(mod.inject.includes('webServer'), 'host inject includes webServer')
 assert.deepEqual(Object.keys(routes).sort(), [
+  '/community-plugins/browse',
   '/community-plugins/catalog',
   '/community-plugins/forks',
   '/community-plugins/install',
@@ -33,6 +34,7 @@ assert.deepEqual(Object.keys(routes).sort(), [
   '/community-plugins/restart',
   '/community-plugins/state',
   '/community-plugins/uninstall',
+  '/community-plugins/validate',
 ])
 for (const route of Object.values(routes)) {
   assert.equal(route.kind, 'exact')
