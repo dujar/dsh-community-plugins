@@ -1,5 +1,7 @@
 # dsh-community-plugins
 
+English | [简体中文](README.zh-CN.md)
+
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) web-GUI plugin that adds a **Community plugins** tab to **Settings → Plugins**. It discovers the plugins published under GitHub's [dsh-plugin topic](https://github.com/topics/dsh-plugin), keeps a **local SQLite catalog** of their metadata, refreshes it in the background, and lets you **search, browse, aggregate by tag, and install/uninstall** with one click.
 
 The tab sits alongside the built-in *Plugin configuration* and *Plugin list* tabs. The built-in *Plugin list* only shows what is already installed; this tab makes the rest of the community discoverable.
@@ -78,7 +80,8 @@ dsh-community-plugins/
     persistence.test.mjs # cached results / filter-driven refetch / clear filters
     forks-ui.test.mjs  # fork count -> fork browser -> install from a fork
   LICENSE
-  README.md
+  README.md           # English (this file)
+  README.zh-CN.md     # Simplified Chinese
 ```
 
 ## Host routes

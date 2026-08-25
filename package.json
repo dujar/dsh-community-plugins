@@ -41,6 +41,14 @@
   ],
   "license": "MIT",
   "author": "bitslicer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dujar/dsh-community-plugins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dujar/dsh-community-plugins/issues"
+  },
+  "homepage": "https://github.com/dujar/dsh-community-plugins#readme",
   "engines": {
     "node": ">=22.19"
   },
